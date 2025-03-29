@@ -796,7 +796,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   speed: 5
   jump: 5
-  physics: {fileID: 1727180990}
+  rb: {fileID: 1727180990}
   cameraTransform: {fileID: 330585546}
 --- !u!23 &1727180986
 MeshRenderer:
