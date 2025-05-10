@@ -1,17 +1,26 @@
+using UnityEditor.Rendering;
 using UnityEngine;
 
-public class PlayerMovement : MonoBehaviour
+public class Jogador : MonoBehaviour
 {
     public float speed = 5f;
+    public float speedFast;
     public float jump = 5f;
-
+    
     // RigidBody: componente de física
-    public Rigidbody rb;
+    public Rigidbody physics;
 
     // Transform: componente de transformações (posição, rotação e escala)
     public Transform cameraTransform;
 
-    private bool isOnGround; // verdadeiro ou falso
+    private bool isOnGround;
+
+    public Animator anim;
+
+    void Awake(){
+        anim = GetComponentInChildren<Animator>();
+        speedFast = speed * 2f;
+    }
 
     void Update()
     {
@@ -27,38 +36,64 @@ public class PlayerMovement : MonoBehaviour
         // Frente e lado da câmera
         // Vector3: eixo x, y e z
         // Forward = frente, Right = direita
-        Vector3 frente = cameraTransform.forward; 
-        Vector3 lado = cameraTransform.right;
-        frente.y = 1; // Garantir que o jogador rotacione com a câmera para baixo ou para cima
-        lado.y = 0; // Evita movimento indesejado no eixo Y
-        frente.Normalize(); // Molda o valor para o mesmo tamanho em todos os eixos
-        lado.Normalize();   // Molda o valor para o mesmo tamanho em todos os eixos
+        Vector3 front = cameraTransform.forward;
+        Vector3 side = cameraTransform.right;
+        front.y = 0; // Garantir que o jogador rotacione com a câmera para baixo ou para cima
+        side.y = 0; // Evita movimento indesejado no eixo Y
+        front.Normalize(); // Molda o valor para o mesmo tamanho em todos os eixos
+        side.Normalize();   // Molda o valor para o mesmo tamanho em todos os eixos
 
-        // Valor de movimentação: soma frente e lado multiplicados pelos inputs e speed
-        Vector3 movimento = (frente * inputVertical + lado * inputHorizontal) * speed;
+        // Valor de movimentação: soma frente e lado multiplicados pelos inputs e velocidade
+        Vector3 movement;
 
+        if(!Input.GetKey(KeyCode.LeftShift))
+            movement = (front * inputVertical + side * inputHorizontal) * speed;
+        else
+            movement = (front * inputVertical + side * inputHorizontal) * speedFast;
+        
         // Aplicar a física
-        rb.velocity = new Vector3(movimento.x, rb.velocity.y, movimento.z);
+        physics.velocity = new Vector3(movement.x, physics.velocity.y, movement.z);
 
         // Verifica se estou iniciando o movimento
-        if (movimento.magnitude > 0.1F)
+        if (movement.magnitude > 0.1F)
         {
             // Transform.forward é o valor da frente
             transform.forward = 
                 Vector3.Slerp(              // Slerp: Método que modifica um valor para outro em x tempo
                     transform.forward,      // Valor modificado: frente do modelo
-                    movimento.normalized,   // Valor alvo: direção do movimento
+                    movement.normalized,   // Valor alvo: direção do movimento
                     Time.deltaTime * 10f);  // Time.deltaTime: tempo em segundos
         }
 
-        // jump
+        // PULO
         // GetKeyDown: pega quando a tecla é apertada
         // KeyCode: é o código da tecla
         // && -> E, operador lógico -> verifica se ambas afirmações são true
         if(Input.GetKeyDown(KeyCode.Space) && isOnGround)
         {
-            rb.AddForce(Vector3.up * jump, ForceMode.Impulse);
+            anim.SetBool("isJumping", isOnGround);
+            physics.AddForce(Vector3.up * jump, ForceMode.Impulse);
             isOnGround = false;
+        }
+
+        
+
+
+        if (isOnGround){
+
+            if(anim.GetBool("isJumping")){
+                anim.SetBool("isJumping", false);
+            }
+
+            if(Input.GetKey(KeyCode.LeftShift))
+            {
+                anim.SetFloat("velX",inputHorizontal*2);
+                anim.SetFloat("velZ",inputVertical*2);
+            }
+            else{
+                anim.SetFloat("velX",inputHorizontal);
+                anim.SetFloat("velZ",inputVertical);
+            }
         }
     }
 

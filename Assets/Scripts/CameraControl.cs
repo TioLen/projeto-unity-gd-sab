@@ -2,59 +2,106 @@ using UnityEngine;
 
 public class CameraControl : MonoBehaviour
 {
-    public Transform player;
-    public float sensitivity = 2f;
-    public float maxHeight = 80f;
-    public float minHeight = -80f;
-    public float distanceFromPlayer = 3f;
-    public float transitionSpeed = 5f; // Speed to return behind player
+    // The target object to orbit around.
+    public Transform target;
 
-    private float rotationX = 0f;
-    private float rotationY = 0f;
-    private bool isMoving = false;
+    // Distance from the target.
+    public float distance = 10.0f;
+    
+    // Rotation speeds for mouse movement.
+    public float xSpeed = 120.0f;
+    public float ySpeed = 120.0f;
+    
+    // Limits for vertical rotation.
+    public float yMinLimit = -20f;
+    public float yMaxLimit = 80f;
+    
+    // Zoom limits.
+    public float distanceMin = 5f;
+    public float distanceMax = 20f;
+    
+    private float x = 0.0f;
+    private float y = 0.0f;
+    private bool isCursorLocked = true;
 
     void Start()
     {
-        Cursor.lockState = CursorLockMode.Locked;
+        
+        // Initialize the angles based on the current rotation.
+        Vector3 angles = transform.eulerAngles;
+        x = angles.y;
+        y = angles.x;
+
+        LockCursor();
+
+        // If there is a rigidbody, prevent it from rotating.
+        if (GetComponent<Rigidbody>())
+        {
+            GetComponent<Rigidbody>().freezeRotation = true;
+        }
     }
 
     void Update()
     {
-        // Detect movement input
-        bool movementInput = Input.GetAxis("Vertical") != 0 || Input.GetAxis("Horizontal") != 0;
-
-        if (movementInput)
+        // Toggle cursor lock state with the Escape key.
+        if (Input.GetKeyDown(KeyCode.Escape))
         {
-            isMoving = true; // Start moving, so the camera should reset behind the player
+            isCursorLocked = !isCursorLocked;
+            if (isCursorLocked)
+            {
+                LockCursor();
+            }
+            else
+            {
+                UnlockCursor();
+            }
         }
-        else if (Input.GetMouseButton(1)) // Right mouse button enables free orbit mode
+    }
+
+    void LateUpdate()
+    {
+        if (target)
         {
-            isMoving = false;
+            // Update the rotation angles based on mouse input.
+            x += Input.GetAxis("Mouse X") * xSpeed * distance * 0.02f;
+            y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
+            y = ClampAngle(y, yMinLimit, yMaxLimit);
+
+            // Create the rotation.
+            Quaternion rotation = Quaternion.Euler(y, x, 0);
+
+            // Adjust the distance based on the scroll wheel.
+            distance = Mathf.Clamp(distance - Input.GetAxis("Mouse ScrollWheel") * 5, distanceMin, distanceMax);
+            
+            // Calculate the new position.
+            Vector3 negDistance = new Vector3(0.0f, 0.0f, -distance);
+            Vector3 position = rotation * negDistance + target.position;
+
+            // Apply the rotation and position to the camera.
+            transform.rotation = rotation;
+            transform.position = position;
         }
+    }
 
-        float moveMouseX = Input.GetAxis("Mouse X") * sensitivity;
-        float moveMouseY = Input.GetAxis("Mouse Y") * sensitivity;
+    void LockCursor()
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
 
-        // If the player is NOT moving, allow free orbit
-        if (!isMoving)
-        {
-            rotationY += moveMouseX;
-            rotationX -= moveMouseY;
-            rotationX = Mathf.Clamp(rotationX, minHeight, maxHeight);
-        }
-        else
-        {
-            // When moving, smoothly reset the camera behind the player
-            rotationY = Mathf.Lerp(rotationY, player.eulerAngles.y, Time.deltaTime * transitionSpeed);
-            rotationX = Mathf.Lerp(rotationX, 15f, Time.deltaTime * transitionSpeed); // Slight downward angle
-        }
+    void UnlockCursor()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
 
-        // Calculate camera position
-        Vector3 direction = new Vector3(0, 0, -distanceFromPlayer);
-        Quaternion rotation = Quaternion.Euler(rotationX, rotationY, 0);
-        transform.position = player.position + rotation * direction;
-
-        // Always look at the player
-        transform.LookAt(player.position);
+    // Clamp the vertical angle to prevent flipping.
+    public static float ClampAngle(float angle, float min, float max)
+    {
+        if (angle < -360F)
+            angle += 360F;
+        if (angle > 360F)
+            angle -= 360F;
+        return Mathf.Clamp(angle, min, max);
     }
 }
