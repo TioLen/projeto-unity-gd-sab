@@ -1,3 +1,5 @@
+using Unity.VisualScripting;
+using UnityEditor;
 using UnityEditor.Rendering;
 using UnityEngine;
 
@@ -16,26 +18,20 @@ public class Jogador : MonoBehaviour
     private bool isOnGround;
 
     public Animator anim;
+    bool isFalling = false;
 
     void Awake(){
         anim = GetComponentInChildren<Animator>();
+        // colliderAnim = GetComponent<Animator>();
         speedFast = speed * 2f;
     }
 
     void Update()
     {
-        // Input: entrada de dados por dispositivos -> teclado, mouse, toque, controle
-        // Input retorna um número:
-            // -1 -> clique para baixo, para esquerda e para trás
-            //  0 -> ausência de clique
-            //  1 -> clique para cima, para direita e frente
-            
+   
         float inputVertical = Input.GetAxis("Vertical");
         float inputHorizontal = Input.GetAxis("Horizontal");
 
-        // Frente e lado da câmera
-        // Vector3: eixo x, y e z
-        // Forward = frente, Right = direita
         Vector3 front = cameraTransform.forward;
         Vector3 side = cameraTransform.right;
         front.y = 0; // Garantir que o jogador rotacione com a câmera para baixo ou para cima
@@ -66,23 +62,22 @@ public class Jogador : MonoBehaviour
         }
 
         // PULO
-        // GetKeyDown: pega quando a tecla é apertada
-        // KeyCode: é o código da tecla
-        // && -> E, operador lógico -> verifica se ambas afirmações são true
         if(Input.GetKeyDown(KeyCode.Space) && isOnGround)
         {
-            anim.SetBool("isJumping", isOnGround);
+            physics.velocity = new Vector3(physics.velocity.x, 0, physics.velocity.z);
+            anim.SetBool("isJumping", true);
             physics.AddForce(Vector3.up * jump, ForceMode.Impulse);
             isOnGround = false;
         }
-
-        
 
 
         if (isOnGround){
 
             if(anim.GetBool("isJumping")){
+                physics.velocity = new Vector3(physics.velocity.x, 0, physics.velocity.z);
                 anim.SetBool("isJumping", false);
+                anim.SetBool("isFalling", false);
+                anim.SetBool("isFaceplant", false);
             }
 
             if(Input.GetKey(KeyCode.LeftShift))
@@ -95,13 +90,71 @@ public class Jogador : MonoBehaviour
                 anim.SetFloat("velZ",inputVertical);
             }
         }
+        else{
+            CheckIfFalling();
+        }
+    }
+
+    void CheckIfFalling()
+    {
+        RaycastHit hit;
+        float longRay = 8f;
+        float shortRay = 5.5f;
+        float verticalVel = physics.velocity.y;
+    
+        // Verifica se NÃO há chão abaixo num raio de 6 unidades (longRay)
+        if (!Physics.Raycast(transform.position, Vector3.down, longRay))
+        {
+            // ele já está caindo, porém não queremos mudar a animação agora,
+            // e sim só quando ele estiver mais perto do chão, ou se a velocidade
+            // for muito alta ao ponto de ele perder o controle da queda
+            
+            isFalling = true;
+            if(physics.velocity.y <= 0.5f)
+                anim.SetBool("isFalling", true);
+
+            Debug.Log("Está caindo true!!");
+            //se nao houver colisao 6 abaixo,
+            Debug.DrawRay(transform.position, Vector3.down * longRay, Color.magenta);
+        }
+
+        // Se está caindo...
+        if (isFalling)
+        {
+            // Verifica se está perto do chão 
+            if (Physics.Raycast(transform.position, Vector3.down, out hit, shortRay))
+            {
+                //verifica se a velocidade de queda está alta
+                if (hit.collider.CompareTag("Ground") && verticalVel < -10f)
+                {
+                    Debug.DrawRay(transform.position, Vector3.down * longRay, Color.red);
+                    anim.SetBool("isFaceplant", true);
+                    isFalling = false; // resetar o estado
+                    isOnGround = true;
+                }
+            }
+        }
+        // Desenha os dois raios para debug
+        Debug.DrawRay(transform.position, Vector3.down * shortRay, Color.cyan);   // pouso
     }
 
     private void OnCollisionEnter(Collision collision)
     {
+        //CollideAndSlide(physics.velocity, transform.position, 0);
+        
         if (collision.gameObject.CompareTag("Ground"))
         {
             isOnGround = true;
+            anim.SetBool("isFalling", false);
+            anim.SetBool("isFaceplant", false);
         }
     }
+    private void OnCollisionExit(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
+        {
+            isOnGround = false;
+        }
+    }
+    
 }
